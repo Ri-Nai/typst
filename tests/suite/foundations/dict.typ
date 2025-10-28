@@ -134,6 +134,28 @@
 #test("c" in dict, false)
 #test(dict, (a: 3, b: 1))
 
+--- dict-filter ---
+// Test the `filter` method.
+#test((:).filter((k, v) => true), (:))
+#test((a: 1, b: 2, c: 3, d: 4).filter((key, value) => value > 2), (c: 3, d: 4))
+#test((a: 1, b: 2, c: 3, d: 4).filter((key, value) => key == "a" or key == "d"), (a: 1, d: 4))
+#let dict = (a: 1, b: 2)
+#let filtered = dict.filter((k, v) => v == 2)
+#test(dict, (a: 1, b: 2))
+#test(filtered, (b: 2))
+
+--- dict-filter-bad-type ---
+// Error: 16-17 expected function, found integer
+#(a: 1).filter(1)
+
+--- dict-filter-non-boolean ---
+// Error: 16-22 expected boolean, found integer
+#(a: 1).filter((k, v) => v)
+
+--- dict-filter-wrong-arity ---
+// Error: 16-17 unexpected argument
+#(a: 1).filter(k => true)
+
 --- dict-from-module ---
 // Test dictionary constructor
 #test(type(dictionary(sys).at("version")), version)

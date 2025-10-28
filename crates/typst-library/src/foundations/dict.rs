@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, AddAssign};
 use std::sync::Arc;
 
+use comemo::Tracked;
 use ecow::{EcoString, eco_format};
 use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
@@ -10,9 +11,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use typst_syntax::is_ident;
 use typst_utils::ArcExt;
 
-use crate::diag::{Hint, HintedStrResult, StrResult};
+use crate::diag::{At, Hint, HintedStrResult, SourceResult, StrResult};
+use crate::engine::Engine;
 use crate::foundations::{
-    Array, Module, Repr, Str, Value, array, cast, func, repr, scope, ty,
+    Array, Context, Func, Module, Repr, Str, Value, array, cast, func, repr, scope, ty,
 };
 
 /// Create a new [`Dict`] from key-value pairs.
@@ -265,6 +267,34 @@ impl Dict {
             .iter()
             .map(|(k, v)| Value::Array(array![k.clone(), v.clone()]))
             .collect()
+    }
+
+    /// Produces a new dictionary with only the pairs for which the predicate
+    /// returns true.
+    #[func]
+    pub fn filter(
+        &self,
+        engine: &mut Engine,
+        context: Tracked<Context>,
+        /// The function to apply to each key-value pair. Must return a boolean.
+        test: Func,
+    ) -> SourceResult<Dict> {
+        let mut kept = IndexMap::<Str, Value, FxBuildHasher>::with_capacity_and_hasher(
+            self.0.len(),
+            FxBuildHasher::default(),
+        );
+
+        for (key, value) in self.iter() {
+            if test
+                .call(engine, context, [Value::Str(key.clone()), value.clone()])?
+                .cast::<bool>()
+                .at(test.span())?
+            {
+                kept.insert(key.clone(), value.clone());
+            }
+        }
+
+        Ok(kept.into())
     }
 }
 
