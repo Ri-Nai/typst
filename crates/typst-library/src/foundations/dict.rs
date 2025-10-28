@@ -271,6 +271,11 @@ impl Dict {
 
     /// Produces a new dictionary with only the pairs for which the predicate
     /// returns true.
+    ///
+    /// ```example
+    /// #let dict = (a: 1, b: 2, c: 3)
+    /// #dict.filter((key, value) => value > 1)
+    /// ```
     #[func]
     pub fn filter(
         &self,
