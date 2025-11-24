@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, AddAssign, Deref, Range};
 
 use comemo::Tracked;
-use ecow::EcoString;
+use ecow::{EcoString, EcoVec};
 use serde::{Deserialize, Serialize};
 use typst_syntax::{Span, Spanned};
 use unicode_normalization::UnicodeNormalization;
@@ -13,10 +13,11 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::diag::{At, SourceResult, StrResult, bail};
 use crate::engine::Engine;
 use crate::foundations::{
-    Array, Bytes, Cast, Context, Decimal, Dict, Func, IntoValue, Label, Repr, Type,
-    Value, Version, cast, dict, func, repr, scope, ty,
+    Array, Bytes, Cast, Content, Context, Decimal, Dict, Func, IntoValue, Label, Packed,
+    Repr, Type, Value, Version, cast, dict, func, repr, scope, ty,
 };
 use crate::layout::Alignment;
+use crate::text::{RawContent, RawElem};
 
 /// Create a new [`Str`] from a format string.
 #[macro_export]
@@ -974,6 +975,55 @@ fn string_is_empty() -> EcoString {
 #[derive(Debug, Clone)]
 pub struct Regex(regex::Regex);
 
+/// The accepted inputs for the `regex` constructor.
+#[derive(Clone)]
+#[doc(hidden)]
+pub struct RegexInput(Str);
+
+impl RegexInput {
+    fn into_str(self) -> Str {
+        self.0
+    }
+
+    fn from_content(content: Content) -> StrResult<Self> {
+        let Some(raw) = content.to_packed::<RawElem>() else {
+            bail!("expected string or raw text");
+        };
+        Ok(Self(Self::raw_to_str(raw)))
+    }
+
+    fn raw_to_str(raw: &Packed<RawElem>) -> Str {
+        match &raw.text {
+            RawContent::Text(text) => text.clone().into(),
+            RawContent::Lines(lines) => Self::join_lines(lines),
+        }
+    }
+
+    fn join_lines(lines: &EcoVec<(EcoString, Span)>) -> Str {
+        let mut iter = lines.iter();
+        let Some((first, _)) = iter.next() else {
+            return Str::default();
+        };
+
+        let mut text = first.clone();
+        if lines.len() == 1 {
+            return text.into();
+        }
+
+        for (line, _) in iter {
+            text.push('\n');
+            text.push_str(line);
+        }
+        text.into()
+    }
+}
+
+cast! {
+    RegexInput,
+    v: Str => Self(v),
+    v: Content => Self::from_content(v)?,
+}
+
 impl Regex {
     /// Create a new regular expression.
     pub fn new(re: &str) -> StrResult<Self> {
@@ -986,19 +1036,21 @@ impl Regex {
     /// Create a regular expression from a string.
     #[func(constructor)]
     pub fn construct(
-        /// The regular expression as a string.
+        /// The regular expression as a string or raw text.
         ///
         /// Most regex escape sequences just work because they are not valid Typst
         /// escape sequences. To produce regex escape sequences that are also valid in
         /// Typst (e.g. `[\\]`), you need to escape twice. Thus, to match a verbatim
         /// backslash, you would need to write `{regex("\\\\")}`.
         ///
-        /// If you need many escape sequences, you can also create a raw element
-        /// and extract its text to use it for your regular expressions:
-        /// ```{regex(`\d+\.\d+\.\d+`.text)}```.
-        regex: Spanned<Str>,
+        /// If you need many escape sequences, you can now pass raw text directly
+        /// to the constructor:
+        /// ```{regex(`\d+\.\d+\.\d+`)}```.
+        /// The previous `{regex(`\d+\.\d+\.\d+`.text)}` form continues to work as well.
+        regex: Spanned<RegexInput>,
     ) -> SourceResult<Regex> {
-        Self::new(&regex.v).at(regex.span)
+        let source = regex.v.into_str();
+        Self::new(&source).at(regex.span)
     }
 }
 

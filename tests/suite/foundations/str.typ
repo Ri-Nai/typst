@@ -180,10 +180,26 @@
 #test("b" in "abc", true)
 #test("1234f".contains(regex("\d")), true)
 #test(regex("\d") in "1234f", true)
+#test("1234f".contains(regex(`\d`)), true)
+#test(regex(`\d`) in "1234f", true)
 #test("abc".contains("d"), false)
 #test("1234g" in "1234f", false)
 #test("abc".contains(regex("^[abc]$")), false)
 #test("abc".contains(regex("^[abc]+$")), true)
+
+--- regex-raw-constructor paged ---
+// Test constructing regexes from raw content.
+#let dotted = regex(`\d+\.\d+\.\d+`)
+#test("version 1.2.3".find(dotted), "1.2.3")
+#let only_caps = regex(raw("^[A-Z]{3}$"))
+#test("ABC".starts-with(only_caps), true)
+#test("ABc".starts-with(only_caps), false)
+#let multiline = regex(raw("\d+\n[A-Z]+"))
+#test("42\nXYZ".contains(multiline), true)
+
+--- regex-content-error paged ---
+// Error: 8-10 expected string or raw text
+#regex([])
 
 --- string-starts-with paged ---
 // Test the `starts-with` and `ends-with` methods.
